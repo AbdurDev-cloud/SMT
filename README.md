@@ -1,135 +1,185 @@
-# SMT (SmartTrafficMNG)
+# Smart Traffic Management System (Edge AI) 🚦
 
-SMT (SmartTrafficMNG) is a **smart traffic management system concept** focused on improving city traffic flow using data, automation, and real-time monitoring.
+An intelligent, real-time traffic management system designed for edge devices (specifically the **Raspberry Pi Zero**). This project uses Computer Vision to dynamically control traffic lights based on vehicle density across a 4-lane intersection, reducing congestion and waiting times.
 
-> **Current repository status:** this repository is in an early bootstrap stage and currently contains documentation only.
+It features an interactive GUI calibrator, multi-source video support (Webcams, MP4s, YouTube streams), hardware GPIO LED integration, and MQTT telemetry for cloud dashboards.
 
 ---
 
-## What this project is
+## 🌟 Key Features
 
-SMT is intended to help traffic operators and city teams:
-
-- monitor intersections and roads in real time,
-- detect congestion patterns early,
-- automate traffic signal decisions,
-- respond quickly to incidents,
-- improve travel time and reduce fuel waste.
-
-The long-term goal is a practical, scalable platform that can support both manual traffic operations and automated optimization.
+*   **Edge AI Detection:** Uses a lightweight MobileNet-SSD model (Caffe) optimized for single-board computers. No heavy frameworks like PyTorch or TensorFlow are required.
+*   **Dynamic Traffic Control:** Allocates "Green Light" time dynamically to the lane with the highest vehicle density. Includes safe Yellow light transitions.
+*   **Multi-Source Video Input:** Automatically detects and handles video feeds from USB Webcams, local MP4 files, or live YouTube URLs.
+*   **Thermal Management (Pi Zero):** Implements a frame-skipping inference pipeline to prevent the single-core CPU from overheating while maintaining a smooth visual output.
+*   **Interactive ROI Calibrator:** Includes a point-and-click GUI tool to perfectly map detection zones to your specific camera angle.
+*   **Cloud Telemetry:** Non-blocking background MQTT client pushes real-time traffic density data to cloud platforms (like ThingsBoard).
+*   **Hardware / Simulation Mode:** Directly controls 12 GPIO pins for physical LEDs. If run on a PC/Mac without GPIO, it gracefully falls back to simulation mode.
 
 ---
 
 ## How it is made (system design)
 
-The target architecture is modular so each part can evolve independently.
+The implementation follows a layered data-to-action flow:
 
 ### 1) Data Sources
 
-Traffic data can come from:
-
-- cameras,
-- IoT sensors (vehicle counters, speed sensors),
-- GPS/mobile mobility feeds,
-- incident reports from operators.
+- camera streams (USB webcam, MP4 samples, YouTube URL)
+- manually calibrated lane ROIs
 
 ### 2) Ingestion Layer
 
-A backend ingestion service receives raw events and normalizes them into a standard format.
-
-Responsibilities:
-
-- validate incoming payloads,
-- timestamp and geo-tag events,
-- buffer and queue traffic streams for downstream processing.
+- frame acquisition and source abstraction in `vision/camera.py`
+- frame skipping to balance throughput and Pi Zero thermal limits
 
 ### 3) Processing & Decision Layer
 
-A processing engine computes traffic metrics and recommends (or applies) control actions.
-
-Examples:
-
-- congestion scoring,
-- queue length estimation,
-- adaptive signal timing,
-- rule-based incident prioritization.
+- MobileNet-SSD inference in `vision/detector.py`
+- lane-wise counting, congestion comparison, and green-lane selection logic
 
 ### 4) Control & Operations Layer
 
-Interfaces with traffic controllers and operator workflows.
-
-Responsibilities:
-
-- apply signal timing plans,
-- trigger alerts for incidents,
-- support manual override by authorized operators.
+- traffic signal state machine in `control/traffic_light.py`
+- GPIO control with simulation fallback for non-Pi environments
 
 ### 5) Visualization Layer
 
-A dashboard for operators and stakeholders to see:
-
-- live traffic conditions,
-- congestion heatmaps,
-- incident timelines,
-- key performance indicators (KPIs).
+- OpenCV display windows for live inspection
+- MQTT telemetry payloads for external dashboards
 
 ---
 
 ## End-to-end flow
 
-1. Sensors/cameras produce traffic events.
-2. Ingestion services validate and normalize data.
-3. Processing services compute metrics and detect issues.
-4. Decision logic suggests or applies traffic control actions.
-5. Dashboard and alerts provide operational visibility.
+1. Video frames are captured from the configured source.
+2. Detector infers vehicles and maps detections into lane ROIs.
+3. Counts are aggregated and the next green lane is selected.
+4. Traffic light controller applies red/yellow/green transitions.
+5. Telemetry is published to MQTT for dashboard visibility.
 
 ---
 
-## Suggested implementation stack
+## 🛠️ Hardware Requirements
 
-Because implementation files are not yet present, this stack is a recommended starting point:
-
-- **Backend API:** Node.js/Express or Python/FastAPI
-- **Streaming/Queue:** Kafka or RabbitMQ
-- **Data Store:** PostgreSQL + optional time-series store
-- **Frontend Dashboard:** React + map visualization tools
-- **Deployment:** Docker + cloud VM/container platform
-- **Observability:** structured logs + metrics + alerting
+To build the physical IoT model, you will need:
+*   **Raspberry Pi Zero W** (or any Pi model 3/4/5)
+*   **Camera Module** (CSI PiCamera or USB Webcam)
+*   **12x LEDs** (4x Red, 4x Yellow, 4x Green)
+*   **12x 330Ω Resistors** & Jumper Wires
+*   **Breadboard** or custom diorama
 
 ---
 
-## Repository structure (current)
+## ⚙️ Installation
 
-```text
-SMT/
-└── README.md
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/YOUR-USERNAME/Smart-Traffic-Management.git
+   cd Smart-Traffic-Management
+   ```
+
+2. **Set up a virtual environment:**
+   ```bash
+   python3 -m venv .venv
+   source .venv/bin/activate
+   ```
+
+3. **Install Dependencies:**
+   *Note: We pin OpenCV to `<5.0.0` because version 5 dropped support for the Caffe DNN module.*
+   ```bash
+   pip install "opencv-python<5.0.0" numpy paho-mqtt yt-dlp
+   ```
+   *(If you are on a Raspberry Pi, also install `RPi.GPIO`: `pip install RPi.GPIO`)*
+
+4. **Download the MobileNet-SSD Model:**
+   The `model/` folder includes a shell script to download the pre-trained weights.
+   ```bash
+   cd model
+   sh download_model.sh
+   cd ..
+   ```
+
+---
+
+## 🚀 Usage
+
+### 1. Configure your Video Source
+Open `config.py` and set your `VIDEO_SOURCE`. It supports three modes:
+```python
+# 1. USB Webcam
+VIDEO_SOURCE = 0
+
+# 2. Local Video File (loops automatically)
+VIDEO_SOURCE = "TrafficSample_6.mp4"
+
+# 3. YouTube URL (requires yt-dlp)
+VIDEO_SOURCE = "https://www.youtube.com/watch?v=EXAMPLE_ID"
 ```
 
-As code is added, this README should be updated with exact directories, service boundaries, and runtime details.
+### 2. Calibrate the Lanes
+Because every camera angle is different, you must map the detection boxes to the physical roads. Run the calibrator tool:
+```bash
+python3 calibrate.py
+```
+* Use your mouse to draw a box for Lane 1, press `ENTER`. Repeat for all 4 lanes.
+* The script will automatically parse and save your new coordinates directly into `config.py`.
+
+### 3. Run the System
+Start the main traffic controller:
+```bash
+python3 main.py
+```
+Press `q` to quit the application cleanly.
 
 ---
 
-## Getting started (current state)
+## 📁 Project Structure
 
-There is no runnable application in the repository yet.
+```text
+├── main.py                     # Main orchestrator loop
+├── config.py                   # Central configuration (ROIs, GPIO, MQTT)
+├── calibrate.py                # GUI tool for interactive ROI drawing
+│
+├── vision/
+│   ├── camera.py               # Handles Webcams, MP4s, and YouTube streams
+│   └── detector.py             # MobileNet-SSD DNN inference engine
+│
+├── control/
+│   └── traffic_light.py        # 4-Lane State Machine and GPIO controller
+│
+├── cloud/
+│   └── mqtt_client.py          # Background telemetry publisher
+│
+└── model/
+    └── download_model.sh       # Script to fetch prototxt and caffemodel
+```
 
-To start development:
+---
 
-1. Define the first service scope (for example: ingestion API).
-2. Scaffold the project structure and dependencies.
-3. Add build, lint, and test tooling.
-4. Expand this README with exact setup commands.
+## ☁️ Cloud Dashboard Integration (MQTT)
+
+This system is pre-configured to send telemetry data to an MQTT broker.
+1. Open `config.py`
+2. Update the `MQTT_BROKER` and `MQTT_ACCESS_TOKEN` with your credentials (e.g., from ThingsBoard).
+3. The system will publish JSON payloads formatted like this:
+   ```json
+   {
+       "lane1_count": 4,
+       "lane2_count": 0,
+       "lane3_count": 1,
+       "lane4_count": 2,
+       "active_green_lane": 1
+   }
+   ```
 
 ---
 
 ## Roadmap
 
-- [ ] Initialize backend service and API contracts
-- [ ] Add traffic event schema and validation
-- [ ] Implement basic congestion analytics
-- [ ] Add operator dashboard MVP
-- [ ] Integrate alerting/notification workflow
-- [ ] Add CI with linting, tests, and security checks
+- [ ] Improve detection calibration and lane robustness
+- [ ] Add reproducible dependency + environment lock files
+- [ ] Add automated linting, tests, and CI checks
+- [ ] Add dashboard templates for MQTT telemetry consumers
 
 ---
 
@@ -144,6 +194,5 @@ When contributing:
 
 ---
 
-## License
-
-License information is not defined yet. Add a `LICENSE` file when finalized.
+## 📜 License
+MIT License. Feel free to use this for your academic or personal IoT projects!
