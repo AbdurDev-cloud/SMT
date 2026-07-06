@@ -33,8 +33,8 @@ To build the physical IoT model, you will need:
 
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/YOUR-USERNAME/Smart-Traffic-Management.git
-   cd Smart-Traffic-Management
+   git clone https://github.com/AbdurDev-cloud/SMT.git
+   cd SMT
    ```
 
 2. **Set up a virtual environment:**
