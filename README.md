@@ -1,6 +1,6 @@
 # Smart Traffic Management System (Edge AI) 🚦
 
-An intelligent, real-time traffic management system designed for edge devices (specifically the **Raspberry Pi Zero**). This project uses Computer Vision to dynamically control traffic lights based on vehicle density across a 4-lane intersection, reducing congestion and waiting times. 
+An intelligent, real-time traffic management system designed for edge devices (specifically the **Raspberry Pi Zero**). This project uses Computer Vision to dynamically control traffic lights based on vehicle density across a 4-lane intersection, reducing congestion and waiting times.
 
 It features an interactive GUI calibrator, multi-source video support (Webcams, MP4s, YouTube streams), hardware GPIO LED integration, and MQTT telemetry for cloud dashboards.
 
@@ -15,6 +15,47 @@ It features an interactive GUI calibrator, multi-source video support (Webcams, 
 *   **Interactive ROI Calibrator:** Includes a point-and-click GUI tool to perfectly map detection zones to your specific camera angle.
 *   **Cloud Telemetry:** Non-blocking background MQTT client pushes real-time traffic density data to cloud platforms (like ThingsBoard).
 *   **Hardware / Simulation Mode:** Directly controls 12 GPIO pins for physical LEDs. If run on a PC/Mac without GPIO, it gracefully falls back to simulation mode.
+
+---
+
+## How it is made (system design)
+
+The implementation follows a layered data-to-action flow:
+
+### 1) Data Sources
+
+- camera streams (USB webcam, MP4 samples, YouTube URL)
+- manually calibrated lane ROIs
+
+### 2) Ingestion Layer
+
+- frame acquisition and source abstraction in `vision/camera.py`
+- frame skipping to balance throughput and Pi Zero thermal limits
+
+### 3) Processing & Decision Layer
+
+- MobileNet-SSD inference in `vision/detector.py`
+- lane-wise counting, congestion comparison, and green-lane selection logic
+
+### 4) Control & Operations Layer
+
+- traffic signal state machine in `control/traffic_light.py`
+- GPIO control with simulation fallback for non-Pi environments
+
+### 5) Visualization Layer
+
+- OpenCV display windows for live inspection
+- MQTT telemetry payloads for external dashboards
+
+---
+
+## End-to-end flow
+
+1. Video frames are captured from the configured source.
+2. Detector infers vehicles and maps detections into lane ROIs.
+3. Counts are aggregated and the next green lane is selected.
+4. Traffic light controller applies red/yellow/green transitions.
+5. Telemetry is published to MQTT for dashboard visibility.
 
 ---
 
@@ -109,7 +150,7 @@ Press `q` to quit the application cleanly.
 ├── cloud/
 │   └── mqtt_client.py          # Background telemetry publisher
 │
-└── model/                      
+└── model/
     └── download_model.sh       # Script to fetch prototxt and caffemodel
 ```
 
@@ -117,7 +158,7 @@ Press `q` to quit the application cleanly.
 
 ## ☁️ Cloud Dashboard Integration (MQTT)
 
-This system is pre-configured to send telemetry data to an MQTT broker. 
+This system is pre-configured to send telemetry data to an MQTT broker.
 1. Open `config.py`
 2. Update the `MQTT_BROKER` and `MQTT_ACCESS_TOKEN` with your credentials (e.g., from ThingsBoard).
 3. The system will publish JSON payloads formatted like this:
@@ -130,6 +171,26 @@ This system is pre-configured to send telemetry data to an MQTT broker.
        "active_green_lane": 1
    }
    ```
+
+---
+
+## Roadmap
+
+- [ ] Improve detection calibration and lane robustness
+- [ ] Add reproducible dependency + environment lock files
+- [ ] Add automated linting, tests, and CI checks
+- [ ] Add dashboard templates for MQTT telemetry consumers
+
+---
+
+## Contribution guidelines
+
+When contributing:
+
+- keep modules focused and testable,
+- include tests for new behavior,
+- document architectural decisions,
+- update this README whenever setup or structure changes.
 
 ---
 
